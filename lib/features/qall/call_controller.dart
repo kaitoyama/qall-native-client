@@ -73,6 +73,14 @@ class CallException implements Exception {
   String toString() => message;
 }
 
+/// LiveKit の接続先が暗号化された接続か。
+/// traQ の `GET /qall/endpoints` は `https://` を返し、LiveKit SDK はそれを `wss://` に変換して接続する。
+@visibleForTesting
+bool isSecureCallEndpoint(String endpoint) {
+  final scheme = Uri.tryParse(endpoint)?.scheme;
+  return scheme == 'https' || scheme == 'wss';
+}
+
 final qallCallProvider = Provider<QallCallController>((ref) {
   final session = ref.watch(sessionProvider);
   final controller = QallCallController(
@@ -256,8 +264,8 @@ class QallCallController extends ChangeNotifier {
       final micGranted = await _requestMicrophonePermission();
       final endpoint = await api.getQallEndpoint();
       // LiveKit のトークンを平文で送らないよう、暗号化された接続先だけを使う
-      if (!(Uri.tryParse(endpoint)?.isScheme('wss') ?? false)) {
-        throw const CallException('通話サーバーの接続先が安全ではありません (wss ではありません)');
+      if (!isSecureCallEndpoint(endpoint)) {
+        throw const CallException('通話サーバーの接続先が安全ではありません (https / wss ではありません)');
       }
       final token = await api.getQallToken(channelId, isWebinar: webinar);
       if (cancelled()) return;
